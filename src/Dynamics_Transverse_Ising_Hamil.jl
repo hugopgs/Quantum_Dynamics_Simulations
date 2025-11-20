@@ -114,6 +114,7 @@ end
 
 # simulating and plotting
 function main()
+    
 
     N = 7 # number of spins
 
@@ -125,26 +126,16 @@ function main()
     steps = 101
  
     @time out_sz = ti_simulation(N, J, alpha, hx, dt, steps)
+    tran= 0:dt:(steps-1)*dt
+    p=plot(tran, out_sz[:,3], label="⟨Sz⟩ of center spin", title="Transverse Ising model dynamics")
+    display(p)
+    # # nice plot
+    # cmap = cgrad(:RdBu)
 
-  
-    # nice plot
-    cmap = cgrad(:RdBu)
-    # default(
-    #     tickfontsize = 10, 
-    #     labelfontsize = 12, 
-    #     fontfamily="times",
-    #     colorbar_ticks=-1:0.5:1,
-    #     color = cmap,
-    #     aspect_ratio=1.2,
-    #     dpi=200)
+    # h = heatmap(1:N, 0:dt:((steps-1) * dt),  out_sz)
+    # xlims!((0.5, N+0.5))
+    # display(h)
 
-    h = heatmap(1:N, 0:dt:((steps-1) * dt),  out_sz)
-    xlims!((0.5, N+0.5))
-    # xlabel!(L"i")
-    # ylabel!(L"tJ")
-
-    display(h)
-    #savefig("ti_ising.png")
 
     return nothing
 

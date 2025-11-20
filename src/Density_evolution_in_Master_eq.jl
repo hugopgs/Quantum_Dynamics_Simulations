@@ -18,7 +18,7 @@ function build_lowering_ops(sm, N)
         push!(sms, kron(left_id, sm, right_id))
     end
 
-    return sms
+    return complex.(sms)
 
 end
 
@@ -38,7 +38,7 @@ function build_sparse_spin_ops(sm, N)
         push!(szs, kron(left_id, sm'*sm - sm*sm', right_id))
     end
 
-    return sxs, szs
+    return complex.(sxs), complex.(szs)
 
 end
 
@@ -99,31 +99,75 @@ function sparse_ti_simulation(N, J,alpha,hx,gamma,dt, steps, m)
 
     H = build_sparse_hamiltonian(J, alpha, hx, sxs, szs)
     Heff= H
+    Heff = complex.(Heff)
     # sm .*sqrt(gamma/2)
     for ii = 1: N 
-        Heff -= im .*(gamma/2) .* (sms[ii]' * sms[ii])
+        Heff -= 1im .*(gamma/2) .* (sms[ii]' * sms[ii])
     end
-    A = spzeros(Float64, 4^N, 4^N)
+    # A = spzeros(Float64, 4^N, 4^N)
     Id = sparse(I, 2^N, 2^N)
-    A += -1im .*(kron(Id, Heff) - kron(conj(Heff)), Id)
+    Id = complex.(Id)
+    A = -1im .*(kron(Id, Heff) - kron(conj.(Heff), Id))
     for ii = 1:N
-        A += gamma .* kron(conj(sms[ii]), sms[ii])
+        A += gamma .* kron(conj.(sms[ii]), sms[ii])
     end
-    display(A)
+    # No=norm(y)
+    # display("Initial norm: $No")
+    # y,_= exponentiate(A,dt, y; krylovdim=20, tol=1e-12)
+    # No=tr(reshape(y, 2^N, 2^N))
+    # display("Norm of Liouvillian applied to rho: $No")
 
+    out_sz=zeros(steps, N )
 
+    for tt= 1: steps
+        #evaluation 
+        rho= reshape(y, 2^N, 2^N)
+        for ii = 1:N
+            out_sz[tt, ii] = real(tr(rho * szs[ii]))
+        end
+        y, _ = exponentiate(A,dt, y; krylovdim=m, tol=1e-12)
+        println("Step $tt/$steps - norm(rho) = $(real(tr(reshape(y, 2^N, 2^N))))")
+    end
+
+    return out_sz
+end
+
+function main()
+    Plots.closeall()  
+    N = 7 # number of spins
+    m=20# dimension of Krylov space
+    J = 1 # defines energy/time units
+    alpha = 1.36 # interaction range
+    hx = 1# transverse field
+    gamma= 0.2
+    dt = 0.1 # time step for plotting
+    steps =101
+
+    @time out_sz =  sparse_ti_simulation(N, J, alpha, hx,gamma, dt, steps, m)
+    tran= 0:dt:(steps-1)*dt
+    plot(tran, out_sz[:,3], label="⟨Sz⟩ of spin 3", title="Transverse Ising model dynamics")
+    plot!(tran, out_sz[:,4], label="⟨Sz⟩ of spin 4", title="Transverse Ising model dynamics")
+    display(current())
+    cmap = cgrad(:RdBu)
+        # default(
+        #     tickfontsize = 10, 
+        #     labelfontsize = 12, 
+        #     fontfamily="times",
+        #     colorbar_ticks=-1:0.5:1,
+        #     color = cmap,
+        #     aspect_ratio=1.2,
+        #     dpi=200)
+
+        h = heatmap(1:N, 0:dt:((steps-1) * dt),  out_sz)
+        xlims!((0.5, N+0.5))
+        # xlabel!(L"i")
+        # ylabel!(L"tJ")
+
+        display(h)
 
     return nothing
 end
 
+main()
 
-N = 7 # number of spins
-m=20# dimension of Krylov space
-J = 1 # defines energy/time units
-alpha = 3 # interaction range
-hx = 2# transverse field
 
-dt = 0.1 # time step for plotting
-steps =101
-
-@time out_sz, out_szsz =  sparse_ti_simulation(N, J, alpha, hx,0.2, dt, steps, m)
