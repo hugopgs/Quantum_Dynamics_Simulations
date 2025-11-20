@@ -126,6 +126,7 @@ function main()
  
     @time out_sz = ti_simulation(N, J, alpha, hx, dt, steps)
 
+  
     # nice plot
     cmap = cgrad(:RdBu)
     # default(
@@ -139,8 +140,8 @@ function main()
 
     h = heatmap(1:N, 0:dt:((steps-1) * dt),  out_sz)
     xlims!((0.5, N+0.5))
-    xlabel!(L"i")
-    ylabel!(L"tJ")
+    # xlabel!(L"i")
+    # ylabel!(L"tJ")
 
     display(h)
     #savefig("ti_ising.png")
