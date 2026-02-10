@@ -110,11 +110,13 @@ function sparse_ti_simulation(N, J,alpha,hx,gamma,dt, steps,nt, m)
     out_sz=zeros(steps,N)
     mneel= div(4^cld(N,2)-1,3)+1
     for qq= 1:nt
+        @show qq
         psi = zeros(ComplexF64, 2^N)
         psi[mneel] = 1.0
 
         traj_sz = zeros(steps, N)
         for tt =1:steps
+            # @show qq, tt
             for ii =1:N
                 traj_sz[tt, ii] = real(psi' * szs[ii] * psi)
             end 
@@ -133,85 +135,122 @@ function ti_trajectory_step(psi, Heff, Ls, dt, rng, m)
     psi0, _ = exponentiate(Heff, -1im .* dt, psi; krylovdim=m, tol=1e-15)
     nrm_psi0 = norm(psi0)
     pc = nrm_psi0^2
-
     pt = rand(rng)
+
     if pt > real(pc)
-        s = 0
         for ee = 1:(length(Ls)-1)
-            p = norm(Ls[ee] * psi)
-            @show p
-            s += p
-            if s > pt
-                psi0 = Ls[ee] * psi
-                return psi0 ./= sqrt(norm(psi0))
+            psiE=sqrt(2. *dt).* Ls[ee] * psi
+            p = norm(psiE)
+            pc+=(p^2)
+            if pc > pt
+                return psiE ./=  norm(psiE)
             end
         end
-        psi0 = Ls[end] * psi
-        return psi0 ./= sqrt(norm(psi0))
+        psiE = Ls[end] * psi
+        return psiE ./= norm(psiE)
     else
-        return psi0 ./= nrm_psi0
+
+        return psi0 ./= norm(psi0)
     end
 end
 
 
-#     # A = spzeros(Float64, 4^N, 4^N)
-#     Id = sparse(I, 2^N, 2^N)
-#     Id = complex.(Id)
-#     A = -1im .*(kron(Id, Heff) - kron(conj.(Heff), Id))
-#     for ii = 1:N
-#         A += gamma .* kron(conj.(sms[ii]), sms[ii])
-#     end
+function sparse_ti_simulation_ideal(N, J,alpha,hx,gamma,dt, steps, m)
 
-#     out_sz=zeros(steps, N )
+    sm =[0 1; 0 0]
+    sms=build_lowering_ops(sm, N)
+    sxs, szs = build_sparse_spin_ops(sm, N)
 
-#     for tt= 1: steps
-#         #evaluation 
-#         rho= reshape(y, 2^N, 2^N)
-#         for ii = 1:N
-#             out_sz[tt, ii] = real(tr(rho * szs[ii]))
-#         end
-#         y, _ = exponentiate(A,dt, y; krylovdim=m, tol=1e-12)
-#         println("Step $tt/$steps - norm(rho) = $(real(tr(reshape(y, 2^N, 2^N))))")
-#     end
+    psi = zeros(ComplexF64, 2^N)
+    mneel= div(4^cld(N,2)-1,3)+1
+    psi[mneel] = 1.0
+    y = (psi*psi')[:]
 
-#     return out_sz
-# end
+    H = build_sparse_hamiltonian(J, alpha, hx, sxs, szs)
+    Heff= H
+    Heff = complex.(Heff)
+    # sm .*sqrt(gamma/2)
+    for ii = 1: N 
+        Heff -= 1im .*(gamma/2) .* (sms[ii]' * sms[ii])
+    end
+    # A = spzeros(Float64, 4^N, 4^N)
+    Id = sparse(I, 2^N, 2^N)
+    Id = complex.(Id)
+    A = -1im .*(kron(Id, Heff) - kron(conj.(Heff), Id))
+    for ii = 1:N
+        A += gamma .* kron(conj.(sms[ii]), sms[ii])
+    end
+    # No=norm(y)
+    # display("Initial norm: $No")
+    # y,_= exponentiate(A,dt, y; krylovdim=20, tol=1e-12)
+    # No=tr(reshape(y, 2^N, 2^N))
+    # display("Norm of Liouvillian applied to rho: $No")
 
+    out_sz=zeros(steps, N )
+
+    for tt= 1: steps
+        #evaluation 
+        rho= reshape(y, 2^N, 2^N)
+        for ii = 1:N
+            out_sz[tt, ii] = real(tr(rho * szs[ii]))
+        end
+        y, _ = exponentiate(A,dt, y; krylovdim=m, tol=1e-12)
+        # println("Step $tt/$steps - norm(rho) = $(real(tr(reshape(y, 2^N, 2^N))))")
+    end
+
+    return out_sz
+end
 
 
 
 function main()
     Plots.closeall()  
     N = 7 # number of spins
-    m=20# dimension of Krylov space
+    m=20 # dimension of Krylov space
     J = 1 # defines energy/time units
-    alpha = 1.36 # interaction range
+    alpha = 1.36# interaction range
     hx = 1# transverse field
     gamma= 0.2
     dt = 0.01 # time step for plotting
-    steps =1001
-    nt=1
+
+     #delta t  times gamma need to be as small as possible whatever the number of trajectories to achieve the convergence 
+
+    steps =401
+    nt=1000
     @time out_sz =  sparse_ti_simulation(N, J, alpha, hx, gamma, dt, steps,nt, m)
+    
+
+
     tran= 0:dt:(steps-1)*dt
-    plot(tran, out_sz[:,3], label="⟨Sz⟩ of spin 3", title="Transverse Ising model dynamics")
-    plot!(tran, out_sz[:,4], label="⟨Sz⟩ of spin 4", title="Transverse Ising model dynamics")
+    plot(tran, out_sz[:,3], label="⟨Sz⟩ of spin 3", title="Transverse Ising model dynamics", linestyle=:solid)
+    plot!(tran, out_sz[:,4], label="⟨Sz⟩ of spin 4", title="Transverse Ising model dynamics", linestyle=:solid)
+
+    @time out_sz = sparse_ti_simulation_ideal(N, J, alpha, hx, gamma, dt, steps, m)
+    plot!(tran, out_sz[:,3], label="⟨Sz⟩ of spin 3, ideal", title="Transverse Ising model dynamics", linestyle=:dash)
+    plot!(tran, out_sz[:,4], label="⟨Sz⟩ of spin 4, ideal", title="Transverse Ising model dynamics",linestyle=:dash)
+
+
+
+
+
+
     display(current())
-    cmap = cgrad(:RdBu)
-        # default(
-        #     tickfontsize = 10, 
-        #     labelfontsize = 12, 
-        #     fontfamily="times",
-        #     colorbar_ticks=-1:0.5:1,
-        #     color = cmap,
-        #     aspect_ratio=1.2,
-        #     dpi=200)
+    # cmap = cgrad(:RdBu)
+    #     # default(
+    #     #     tickfontsize = 10, 
+    #     #     labelfontsize = 12, 
+    #     #     fontfamily="times",
+    #     #     colorbar_ticks=-1:0.5:1,
+    #     #     color = cmap,
+    #     #     aspect_ratio=1.2,
+    #     #     dpi=200)
 
-        h = heatmap(1:N, 0:dt:((steps-1) * dt),  out_sz)
-        xlims!((0.5, N+0.5))
-        # xlabel!(L"i")
-        # ylabel!(L"tJ")
+    #     h = heatmap(1:N, 0:dt:((steps-1) * dt),  out_sz)
+    #     xlims!((0.5, N+0.5))
+    #     # xlabel!(L"i")
+    #     # ylabel!(L"tJ")
 
-        display(h)
+    #     display(h)
 
     return nothing
 end
