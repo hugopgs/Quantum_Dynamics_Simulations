@@ -44,7 +44,7 @@ The tutorials are organized by physical model and numerical technique:
     * [cite_start]**Description:** Defines a custom `VidalMPS` struct managing $\Gamma$ tensors and $\Lambda$ singular value matrices[cite: 70]. [cite_start]Implements bond updates using SVD truncation to limit the bond dimension $\chi$[cite: 74, 75].
 
 ### 5. Quantum Control (Python)
-* **ramsey_fringes.py`**
+* **`ramsey_fringes.py`**
     * **Method:** Analytical Time Evolution (Python).
     * **Description:** Simulates **Ramsey Interferometry** sequences. Calculates the excitation probability $P_e(\Delta)$ as a function of detuning and pulse duration to visualize Ramsey fringes and the effect of pulse area ($\pi/2$ vs $\pi$ pulses).
 
@@ -63,3 +63,4 @@ Pkg.add([
     "Random", 
     "ITensors"
 ])
+
